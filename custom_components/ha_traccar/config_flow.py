@@ -10,10 +10,8 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import (
     CONF_HOST,
-    CONF_PASSWORD,
     CONF_PORT,
     CONF_SSL,
-    CONF_USERNAME,
     CONF_VERIFY_SSL,
 )
 from homeassistant.core import callback
@@ -46,7 +44,7 @@ from .const import (
     LOGGER,
 )
 
-# ===================== 配置输入 =====================
+# 关键：只保留 host、port、token，没有 username/password
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): TextSelector(
@@ -55,14 +53,8 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Optional(CONF_PORT, default="8082"): TextSelector(
             TextSelectorConfig(type=TextSelectorType.TEXT)
         ),
-        vol.Required(CONF_USERNAME): TextSelector(
-            TextSelectorConfig(type=TextSelectorType.EMAIL)
-        ),
-        vol.Required(CONF_PASSWORD): TextSelector(
+        vol.Required("token"): TextSelector(
             TextSelectorConfig(type=TextSelectorType.PASSWORD)
-        ),
-        vol.Optional("token"): TextSelector(  # 👈 新增 token 支持
-            TextSelectorConfig(type=TextSelectorType.TEXT)
         ),
         vol.Optional(CONF_SSL, default=False): BooleanSelector(BooleanSelectorConfig()),
         vol.Optional(CONF_VERIFY_SSL, default=True): BooleanSelector(
@@ -71,7 +63,6 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     }
 )
 
-# ===================== 选项 =====================
 OPTIONS_FLOW = {
     "init": SchemaFlowFormStep(
         schema=vol.Schema(
@@ -115,42 +106,28 @@ OPTIONS_FLOW = {
 }
 
 
-# ===================== 主 Config Flow =====================
 class TraccarServerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for ha_traccar."""
 
     async def _get_server_info(self, user_input: dict[str, Any]) -> ServerModel:
-        """Connect to Traccar server and validate."""
-
-        # 构造 URL
-        scheme = "https" if user_input.get(CONF_SSL) else "http"
+        """Connect to Traccar server using API token."""
         host = user_input[CONF_HOST]
-        port = str(user_input.get(CONF_PORT, "8082"))
-
-        base_url = f"{scheme}://{host}:{port}"
+        port = int(user_input.get(CONF_PORT, 8082))
+        token = user_input["token"]
+        verify_ssl = user_input.get(CONF_VERIFY_SSL, True)
+        ssl = user_input.get(CONF_SSL, False)
 
         session = async_get_clientsession(self.hass)
 
-        try:
-            # 新版 pytraccar（支持 token）
-            client = ApiClient(
-                client_session=session,
-                base_url=base_url,
-                username=user_input.get(CONF_USERNAME),
-                password=user_input.get(CONF_PASSWORD),
-                token=user_input.get("token", None),
-                verify_ssl=user_input.get(CONF_VERIFY_SSL, True),
-            )
-        except TypeError:
-            # 兼容旧版本 pytraccar
-            client = ApiClient(
-                client_session=session,
-                base_url=base_url,
-                username=user_input.get(CONF_USERNAME),
-                password=user_input.get(CONF_PASSWORD),
-                verify_ssl=user_input.get(CONF_VERIFY_SSL, True),
-            )
-
+        # 只使用 token，不传 username/password
+        client = ApiClient(
+            host=host,
+            port=port,
+            token=token,
+            client_session=session,
+            ssl=ssl,
+            verify_ssl=verify_ssl,
+        )
         return await client.get_server()
 
     async def async_step_user(
@@ -158,7 +135,6 @@ class TraccarServerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         user_input: dict[str, Any] | None = None,
     ) -> config_entries.ConfigFlowResult:
         """Handle the initial step."""
-
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -193,7 +169,6 @@ class TraccarServerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, import_info: Mapping[str, Any]
     ) -> config_entries.ConfigFlowResult:
         """Import from YAML."""
-
         configured_port = str(import_info[CONF_PORT])
 
         self._async_abort_entries_match(
@@ -215,8 +190,7 @@ class TraccarServerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_PORT: configured_port,
                 CONF_SSL: import_info.get(CONF_SSL, False),
                 CONF_VERIFY_SSL: import_info.get(CONF_VERIFY_SSL, True),
-                CONF_USERNAME: import_info[CONF_USERNAME],
-                CONF_PASSWORD: import_info[CONF_PASSWORD],
+                "token": import_info["token"],
             },
             options={
                 CONF_MAX_ACCURACY: import_info[CONF_MAX_ACCURACY],

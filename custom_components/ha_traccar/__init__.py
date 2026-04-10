@@ -10,16 +10,13 @@ from pytraccar import ApiClient
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_HOST,
-    CONF_PASSWORD,
     CONF_PORT,
     CONF_SSL,
-    CONF_USERNAME,
     CONF_VERIFY_SSL,
     Platform,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
-from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
@@ -37,10 +34,8 @@ PLATFORMS: list[Platform] = [
     Platform.SENSOR,
 ]
 
-# 自定义实体ID格式化器
 def format_entity_id(entity_id_format: str, name: str) -> str:
     """Format the entity ID."""
-    # 将中文名称转换为拼音的正则表达式
     name = re.sub(r'[^\w\s]', '', name).lower()
     return entity_id_format.format(name)
 
@@ -53,17 +48,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             unsafe=not entry.data[CONF_SSL] or not entry.data[CONF_VERIFY_SSL]
         ),
     )
+    
+    # 使用 token 认证
+    client = ApiClient(
+        host=entry.data[CONF_HOST],
+        port=int(entry.data[CONF_PORT]),
+        token=entry.data["token"],
+        client_session=client_session,
+        ssl=entry.data[CONF_SSL],
+        verify_ssl=entry.data[CONF_VERIFY_SSL],
+    )
+    
     coordinator = TraccarServerCoordinator(
         hass=hass,
-        client=ApiClient(
-            client_session=client_session,
-            host=entry.data[CONF_HOST],
-            port=entry.data[CONF_PORT],
-            username=entry.data[CONF_USERNAME],
-            password=entry.data[CONF_PASSWORD],
-            ssl=entry.data[CONF_SSL],
-            verify_ssl=entry.data[CONF_VERIFY_SSL],
-        ),
+        client=client,
         events=entry.options.get(CONF_EVENTS, []),
         max_accuracy=entry.options.get(CONF_MAX_ACCURACY, 0.0),
         skip_accuracy_filter_for=entry.options.get(CONF_SKIP_ACCURACY_FILTER_FOR, []),
