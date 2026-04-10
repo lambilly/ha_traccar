@@ -104,5 +104,4 @@
 - 原项目地址：https://github.com/MagicStarTrace/ha_traccar
 
 ## 采用 MIT 许可证
-
-### 如果此集成对您有帮助，请给项目一个 ⭐ Star ！
+- 如果此集成对您有帮助，请给项目一个 ⭐ Star ！
