@@ -4,8 +4,8 @@
 **特别针对中国地区优化**：自动将 GCJ-02（火星坐标）转换为 WGS84 坐标，可直接用于 Home Assistant 区域判断。
 
 > **注意**：
-> 本版本Fork自 https://github.com/MagicStarTrace/ha_traccar，
-> 由于其版本登录错误，基于原版改进登录方式（TOKEN)，并将集成名称改为 **Traccar 火星版**，支持 API Token 认证（推荐）。
+-  本版本Fork自 https://github.com/MagicStarTrace/ha_traccar 
+-  由于其版本登录错误，基于原版改进登录方式（TOKEN)，并将集成名称改为 **Traccar 火星版**，支持 API Token 认证（推荐）。
 
 ## 🚀 主要改进
 
@@ -100,8 +100,8 @@
 3. Home Assistant：2023.0.0 及以上
 
 ## 贡献与许可
-1. 项目地址：https://github.com/lambilly/ha_traccar
-2. 原项目地址：https://github.com/MagicStarTrace/ha_traccar
+- 项目地址：https://github.com/lambilly/ha_traccar
+- 原项目地址：https://github.com/MagicStarTrace/ha_traccar
 
 ## 采用 MIT 许可证
 
