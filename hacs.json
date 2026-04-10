@@ -1,5 +1,5 @@
 {
-  "name": "Traccar 服务器",
+  "name": "Traccar 火星版",
   "domains": ["ha_traccar"],
   "render_readme": true,
   "homeassistant": "2023.0.0",
