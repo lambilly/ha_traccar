@@ -46,6 +46,7 @@ from .const import (
     LOGGER,
 )
 
+# ===================== 配置输入 =====================
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): TextSelector(
@@ -60,6 +61,9 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_PASSWORD): TextSelector(
             TextSelectorConfig(type=TextSelectorType.PASSWORD)
         ),
+        vol.Optional("token"): TextSelector(  # 👈 新增 token 支持
+            TextSelectorConfig(type=TextSelectorType.TEXT)
+        ),
         vol.Optional(CONF_SSL, default=False): BooleanSelector(BooleanSelectorConfig()),
         vol.Optional(CONF_VERIFY_SSL, default=True): BooleanSelector(
             BooleanSelectorConfig()
@@ -67,6 +71,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     }
 )
 
+# ===================== 选项 =====================
 OPTIONS_FLOW = {
     "init": SchemaFlowFormStep(
         schema=vol.Schema(
@@ -110,20 +115,42 @@ OPTIONS_FLOW = {
 }
 
 
+# ===================== 主 Config Flow =====================
 class TraccarServerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for ha_traccar."""
 
     async def _get_server_info(self, user_input: dict[str, Any]) -> ServerModel:
-        """Get server info."""
-        client = ApiClient(
-            client_session=async_get_clientsession(self.hass),
-            host=user_input[CONF_HOST],
-            port=user_input[CONF_PORT],
-            username=user_input[CONF_USERNAME],
-            password=user_input[CONF_PASSWORD],
-            ssl=user_input[CONF_SSL],
-            verify_ssl=user_input[CONF_VERIFY_SSL],
-        )
+        """Connect to Traccar server and validate."""
+
+        # 构造 URL
+        scheme = "https" if user_input.get(CONF_SSL) else "http"
+        host = user_input[CONF_HOST]
+        port = str(user_input.get(CONF_PORT, "8082"))
+
+        base_url = f"{scheme}://{host}:{port}"
+
+        session = async_get_clientsession(self.hass)
+
+        try:
+            # 新版 pytraccar（支持 token）
+            client = ApiClient(
+                client_session=session,
+                base_url=base_url,
+                username=user_input.get(CONF_USERNAME),
+                password=user_input.get(CONF_PASSWORD),
+                token=user_input.get("token", None),
+                verify_ssl=user_input.get(CONF_VERIFY_SSL, True),
+            )
+        except TypeError:
+            # 兼容旧版本 pytraccar
+            client = ApiClient(
+                client_session=session,
+                base_url=base_url,
+                username=user_input.get(CONF_USERNAME),
+                password=user_input.get(CONF_PASSWORD),
+                verify_ssl=user_input.get(CONF_VERIFY_SSL, True),
+            )
+
         return await client.get_server()
 
     async def async_step_user(
@@ -131,7 +158,9 @@ class TraccarServerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         user_input: dict[str, Any] | None = None,
     ) -> config_entries.ConfigFlowResult:
         """Handle the initial step."""
+
         errors: dict[str, str] = {}
+
         if user_input is not None:
             self._async_abort_entries_match(
                 {
@@ -139,12 +168,13 @@ class TraccarServerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_PORT: user_input[CONF_PORT],
                 }
             )
+
             try:
                 await self._get_server_info(user_input)
             except TraccarException as exception:
-                LOGGER.error("Unable to connect to ha_traccar: %s", exception)
+                LOGGER.error("Unable to connect to Traccar: %s", exception)
                 errors["base"] = "cannot_connect"
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
@@ -162,18 +192,22 @@ class TraccarServerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_import(
         self, import_info: Mapping[str, Any]
     ) -> config_entries.ConfigFlowResult:
-        """Import an entry."""
+        """Import from YAML."""
+
         configured_port = str(import_info[CONF_PORT])
+
         self._async_abort_entries_match(
             {
                 CONF_HOST: import_info[CONF_HOST],
                 CONF_PORT: configured_port,
             }
         )
+
         if "all_events" in (imported_events := import_info.get("event", [])):
             events = list(EVENTS.values())
         else:
             events = imported_events
+
         return self.async_create_entry(
             title=f"{import_info[CONF_HOST]}:{configured_port}",
             data={
@@ -199,5 +233,5 @@ class TraccarServerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
     ) -> SchemaOptionsFlowHandler:
-        """Get the options flow for this handler."""
+        """Return options flow."""
         return SchemaOptionsFlowHandler(config_entry, OPTIONS_FLOW)
