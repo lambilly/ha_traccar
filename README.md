@@ -3,15 +3,13 @@
 一个为 Home Assistant 提供的 Traccar 服务器集成，支持实时设备跟踪、传感器监控和事件响应。  
 **特别针对中国地区优化**：自动将 GCJ-02（火星坐标）转换为 WGS84 坐标，可直接用于 Home Assistant 区域判断。
 
-> **注意**：本版本基于原版改进，主要新增 WGS84 坐标转换实体，并将集成名称改为 **Traccar 火星版**，支持 API Token 认证（推荐）或账号密码登录（需手动修改库）。
+> **注意**：本版本Fork自https://github.com/MagicStarTrace/ha_traccar，由于其版本登录错误，基于原版改进登录方式（TOKEN)，并将集成名称改为 **Traccar 火星版**，支持 API Token 认证（推荐）。
 
 ## 🚀 主要改进
 
 - ✅ **集成名称改为“Traccar 火星版”**，更符合中国用户习惯
 - ✅ **新增 WGS84 坐标跟踪器**：自动将 GCJ-02 坐标转换为 WGS84，可直接用于区域（Zone）判断
 - ✅ **支持 API Token 认证**（官方推荐，无需修改库，兼容性最好）
-- ✅ **保留账号密码登录方式**（需手动修改 `pytraccar` 库一行代码，详见下方说明）
-- ✅ **修复 415 错误**：解决 Traccar 服务器不接受 JSON 登录的问题
 
 ## 功能特性
 
@@ -72,7 +70,7 @@
 
 ## 配置方法
 
-### 推荐方式：使用 API Token（无需修改库，最稳定）
+### 推荐方式：使用 API Token（最稳定）
 
 1. 登录 Traccar Web 界面 → 设置 → 个人 → **API Token** → 生成一个 token（建议永不过期）
 2. 在 Home Assistant 中添加集成：
@@ -81,38 +79,28 @@
 - **API Token**：粘贴生成的 token
 - SSL 和验证按需勾选
 
-> ✅ 此方式无需输入用户名密码，不受 415 错误影响。
+## 高级选项
+### 在集成配置页面的 选项 中可以设置：
+1. 最大精度：过滤精度低于指定值的位置数据（米）
+2. 跳过精度过滤的属性：某些属性不受精度过滤影响
+3. 自定义属性：添加设备或位置中的自定义属性
+4. 事件：选择需要在 Home Assistant 中触发的事件类型
 
-高级选项
-在集成配置页面的 选项 中可以设置：
+### 坐标转换说明
+1. GCJ-02（火星坐标）：中国境内使用的加密坐标系统（高德、腾讯地图）
+2. WGS84：国际通用 GPS 坐标系统（Google 地图、Home Assistant 区域）
+3. 转换逻辑：自动判断是否在中国境内，境内自动转换，境外保持原样
+4. WGS84 实体：device_tracker.{设备名}_wgs84 的经纬度已转换，可直接用于 Zone 触发
 
-最大精度：过滤精度低于指定值的位置数据（米）
+## 兼容性
+1. Traccar 服务器：5.x 及以上（推荐使用支持 API Token 的版本）
+2. 推荐 Docker 镜像：bg6rsh/traccar-amap:5.8（已测试）
+3. Home Assistant：2023.0.0 及以上
 
-跳过精度过滤的属性：某些属性不受精度过滤影响
+## 贡献与许可
+项目地址：https://github.com/lambilly/ha_traccar
+原项目地址：https://github.com/MagicStarTrace/ha_traccar
 
-自定义属性：添加设备或位置中的自定义属性
+## 采用 MIT 许可证
 
-事件：选择需要在 Home Assistant 中触发的事件类型
-
-坐标转换说明
-GCJ-02（火星坐标）：中国境内使用的加密坐标系统（高德、腾讯地图）
-
-WGS84：国际通用 GPS 坐标系统（Google 地图、Home Assistant 区域）
-
-转换逻辑：自动判断是否在中国境内，境内自动转换，境外保持原样
-
-WGS84 实体：device_tracker.{设备名}_wgs84 的经纬度已转换，可直接用于 Zone 触发
-
-兼容性
-Traccar 服务器：5.x 及以上（推荐使用支持 API Token 的版本）
-
-推荐 Docker 镜像：bg6rsh/traccar-amap:5.8（已测试）
-
-Home Assistant：2023.0.0 及以上
-
-贡献与许可
-项目地址：https://github.com/MagicStarTrace/ha_traccar
-
-采用 MIT 许可证
-
-如果此集成对您有帮助，请给项目一个 ⭐ Star ！
+### 如果此集成对您有帮助，请给项目一个 ⭐ Star ！
