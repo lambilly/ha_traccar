@@ -2,47 +2,83 @@
   "config": {
     "step": {
       "user": {
-        "title": "Traccar 火星版",
         "data": {
-          "host": "[%key:common::config_flow::data::host%]",
-          "port": "[%key:common::config_flow::data::port%]",
-          "token": "API Token",
-          "ssl": "[%key:common::config_flow::data::ssl%]",
-          "verify_ssl": "[%key:common::config_flow::data::verify_ssl%]"
+          "host": "Host",
+          "port": "Port",
+          "ssl": "Use SSL",
+          "verify_ssl": "Verify SSL certificate",
+          "username": "Username",
+          "password": "Password"
         },
-        "data_description": {
-          "host": "Traccar 服务器的主机名或 IP 地址",
-          "port": "8082",
-          "token": "在 Traccar 设置中生成的 API Token",
-          "ssl": "使用 SSL 证书",
-          "verify_ssl": "验证 SSL 证书"
-        }
+        "title": "Traccar Mars Edition"
       }
     },
     "error": {
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-      "unknown": "[%key:common::config_flow::error::unknown%]"
+      "cannot_connect": "Cannot connect to Traccar server",
+      "invalid_auth": "Invalid username or password",
+      "unknown": "Unknown error"
     },
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+      "already_configured": "This server is already configured"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Traccar 火星版选项",
         "data": {
-          "max_accuracy": "最大精度",
-          "skip_accuracy_filter_for": "属性的位置跳过过滤器",
-          "custom_attributes": "自定义属性",
-          "events": "事件"
+          "max_accuracy": "Max accuracy (meters)",
+          "skip_accuracy_filter_for": "Skip accuracy filter for",
+          "custom_attributes": "Custom attributes",
+          "events": "Events to monitor"
         },
-        "data_description": {
-          "max_accuracy": "任何精度高于此值的位置报告都将被忽略",
-          "skip_accuracy_filter_for": "如果此处定义的属性在更新中存在，则它们将忽略精度过滤器",
-          "custom_attributes": "在此处添加任何自定义或计算的属性。这些属性将被添加到设备属性中",
-          "events": "选定的事件将在 Home Assistant 中触发"
-        }
+        "title": "Traccar Mars Edition Options"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "motion": {
+        "name": "Motion"
+      },
+      "status": {
+        "name": "Online"
+      },
+      "charging": {
+        "name": "Charging"
+      }
+    },
+    "sensor": {
+      "battery": {
+        "name": "Battery"
+      },
+      "altitude": {
+        "name": "Altitude"
+      },
+      "speed": {
+        "name": "Speed"
+      },
+      "course": {
+        "name": "Course"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "distance": {
+        "name": "Distance"
+      },
+      "address": {
+        "name": "Address"
+      },
+      "geofence": {
+        "name": "Geofence"
+      }
+    },
+    "device_tracker": {
+      "tracker": {
+        "name": "Device Tracker"
+      },
+      "tracker_wgs84": {
+        "name": "WGS84 Tracker"
       }
     }
   }

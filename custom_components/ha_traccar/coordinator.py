@@ -44,6 +44,7 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
     def __init__(
         self,
         hass: HomeAssistant,
+        config_entry: ConfigEntry,
         client: ApiClient,
         *,
         events: list[str],
@@ -58,6 +59,7 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
             name=DOMAIN,
             update_interval=None,
         )
+        self.config_entry = config_entry
         self.client = client
         self.custom_attributes = custom_attributes
         self.events = events
@@ -158,10 +160,12 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
             )
             update_devices.add(device_id)
 
+        # 发送更新信号（与实体基类中监听的信号格式一致）
         for device_id in update_devices:
-            async_dispatcher_send(self.hass, f"{DOMAIN}_{device_id}")
+            signal = f"{DOMAIN}_{self.config_entry.entry_id}_{device_id}_update"
+            async_dispatcher_send(self.hass, signal)
 
-    async def import_events(self, _: datetime) -> None:
+    async def import_events(self, _: datetime | None = None) -> None:
         """Import events from Traccar."""
         start_time = dt_util.utcnow().replace(tzinfo=None)
         end_time = None
@@ -182,13 +186,7 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
         for event in events:
             device = self.data[event["deviceId"]]["device"]
             self.hass.bus.async_fire(
-                # This goes against two of the HA core guidelines:
-                # 1. Event names should be prefixed with the domain name of
-                #    the integration
-                # 2. This should be event entities
-                #
-                # However, to not break it for those who currently use
-                # the "old" integration, this is kept as is.
+                # 保持与原有集成的兼容性，事件名前缀为 "traccar_"
                 f"traccar_{EVENTS[event['type']]}",
                 {
                     "device_traccar_id": event["deviceId"],
@@ -200,16 +198,24 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
             )
 
     async def subscribe(self) -> None:
-        """Subscribe to events."""
-        try:
-            await self.client.subscribe(self.handle_subscription_data)
-        except TraccarException as ex:
-            if self._should_log_subscription_error:
-                self._should_log_subscription_error = False
-                LOGGER.error("Error while subscribing to Traccar: %s", ex)
-            # Retry after 10 seconds
-            await asyncio.sleep(10)
-            await self.subscribe()
+        """Subscribe to events with automatic reconnection."""
+        while True:
+            try:
+                await self.client.subscribe(self.handle_subscription_data)
+            except TraccarException as ex:
+                if self._should_log_subscription_error:
+                    self._should_log_subscription_error = False
+                    LOGGER.error("Error while subscribing to Traccar: %s", ex)
+                # 等待 10 秒后重试
+                await asyncio.sleep(10)
+                continue
+            except asyncio.CancelledError:
+                LOGGER.debug("Subscription task cancelled")
+                break
+            except Exception as ex:  # pylint: disable=broad-except
+                LOGGER.exception("Unexpected error in subscription: %s", ex)
+                await asyncio.sleep(10)
+                continue
 
     def _return_custom_attributes_if_not_filtered_by_accuracy_configuration(
         self,
@@ -218,12 +224,12 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
     ) -> dict[str, Any] | None:
         """Return a dictionary of custom attributes if not filtered by accuracy configuration."""
         attr = {}
-        # 始终跳过精度过滤
-        skip_accuracy_filter = True
+        skip_accuracy_filter = any(
+            attr_name in self.skip_accuracy_filter_for
+            for attr_name in self.custom_attributes
+        )
 
         for custom_attr in self.custom_attributes:
-            if custom_attr in self.skip_accuracy_filter_for:
-                skip_accuracy_filter = True
             attr[custom_attr] = device["attributes"].get(
                 custom_attr,
                 position["attributes"].get(custom_attr, None),
