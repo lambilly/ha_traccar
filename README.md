@@ -127,7 +127,7 @@
 ## 兼容性
 
 - **Traccar 服务器**：5.x 及以上
-- **推荐 Docker 镜像**：[bg6rsh/traccar-amap:5.8](https://hub.docker.com/r/bg6rsh/traccar-amap)（已测试，内置高德地图适配）
+- **推荐 Docker 镜像**：[bg6rsh/traccar-amap:6.11](https://hub.docker.com/r/bg6rsh/traccar-amap)（已测试，内置高德地图适配）
 - **Home Assistant**：2023.0.0 及以上
 
 ---
