@@ -1,83 +1,85 @@
 {
-    "config": {
-        "step": {
-            "user": {
-                "data": {
-                    "host": "Host",
-                    "port": "Port",
-                    "token": "API Token",
-                    "ssl": "Enable SSL",
-                    "verify_ssl": "Verify SSL"
-                },
-                "title": "Traccar GCJ02"
-            }
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "ssl": "Use SSL",
+          "verify_ssl": "Verify SSL certificate",
+          "username": "Username",
+          "password": "Password"
         },
-        "error": {
-            "cannot_connect": "Cannot connect to Traccar server",
-            "invalid_auth": "Invalid authentication",
-            "unknown": "Unknown error"
-        },
-        "abort": {
-            "already_configured": "This server is already configured"
-        }
+        "title": "Traccar Mars Edition"
+      }
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "max_accuracy": "Max Accuracy",
-                    "skip_accuracy_filter_for": "Skip accuracy filter for attributes",
-                    "custom_attributes": "Custom attributes",
-                    "events": "Events"
-                },
-                "title": "Traccar Mars Edition Options"
-            }
-        }
+    "error": {
+      "cannot_connect": "Cannot connect to Traccar server",
+      "invalid_auth": "Invalid username or password",
+      "unknown": "Unknown error"
     },
-    "entity": {
-        "device_tracker": {
-            "traccar_device_tracker": {
-                "state_attributes": {
-                    "speed": {"name": "speed"},
-                    "course": {"name": "course"},
-                    "device_status": {"name": "device_status"},
-                    "last_update": {"name": "last_update"},
-                    "battery_level": {"name": "Battery level"},
-                    "battery": {"name": "battery"},
-                    "gps_accuracy": {"name": "GPS accuracy"},
-                    "latitude": {"name": "latitude"},
-                    "longitude": {"name": "longitude"},
-                    "motion": {"name": "motion"},
-                    "armed": {"name": "armed"},
-                    "charge": {"name": "charge"},
-                    "ignition": {"name": "ignition"},
-                    "status": {"name": "status"},
-                    "distance": {"name": "distance"},
-                    "totalDistance": {"name": "Total Distance"},
-                    "hours": {"name": "hours"},
-                    "address": {"name": "address"},
-                    "source_type": {
-                        "name": "source_type",
-                        "state": {
-                            "bluetooth_le": "bluetooth_le",
-                            "bluetooth": "bluetooth",
-                            "gps": "GPS",
-                            "router": "router"
-                        }
-                    }
-                }
-            }
-        },
-        "sensor": {
-            "wgs84_location": {
-                "name": "WGS84 Location",
-                "state_attributes": {
-                    "wgs84_latitude": {"name": "WGS84 Latitude"},
-                    "wgs84_longitude": {"name": "WGS84 Longitude"},
-                    "gcj02_latitude": {"name": "GCJ02 Latitude"},
-                    "gcj02_longitude": {"name": "GCJ02 Longitude"}
-                }
-            }
-        }
+    "abort": {
+      "already_configured": "This server is already configured"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "max_accuracy": "Max accuracy (meters)",
+          "skip_accuracy_filter_for": "Skip accuracy filter for",
+          "custom_attributes": "Custom attributes",
+          "events": "Events to monitor"
+        },
+        "title": "Traccar Mars Edition Options"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "motion": {
+        "name": "Motion"
+      },
+      "status": {
+        "name": "Online"
+      },
+      "charging": {
+        "name": "Charging"
+      }
+    },
+    "sensor": {
+      "battery": {
+        "name": "Battery"
+      },
+      "altitude": {
+        "name": "Altitude"
+      },
+      "speed": {
+        "name": "Speed"
+      },
+      "course": {
+        "name": "Course"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "distance": {
+        "name": "Distance"
+      },
+      "address": {
+        "name": "Address"
+      },
+      "geofence": {
+        "name": "Geofence"
+      }
+    },
+    "device_tracker": {
+      "tracker": {
+        "name": "Device Tracker"
+      },
+      "tracker_wgs84": {
+        "name": "WGS84 Tracker"
+      }
+    }
+  }
 }
