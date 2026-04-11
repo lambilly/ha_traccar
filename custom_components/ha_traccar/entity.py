@@ -28,20 +28,17 @@ class TraccarServerEntity(CoordinatorEntity[TraccarServerCoordinator]):
         self.device_id = device["id"]
         self.entity_type_suffix = entity_type_suffix
 
-        # 生成唯一 ID
         unique_id = device.get("uniqueId")
         if not unique_id:
             unique_id = f"unknown_{device['id']}"
         self._attr_unique_id = f"{unique_id}_{entity_type_suffix}" if entity_type_suffix else unique_id
 
-        # 设备信息
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, unique_id)},
             model=device.get("model"),
             name=device["name"],
         )
 
-        # 保存设备名和 sanitized 名称（用于某些实体生成 entity_id）
         self._device_name = device["name"]
         self._safe_name = device.get("safe_name", sanitize_entity_id(device["name"], device["id"]))
 
@@ -81,7 +78,7 @@ class TraccarServerEntity(CoordinatorEntity[TraccarServerCoordinator]):
 
     async def async_added_to_hass(self) -> None:
         """Entity added to hass."""
-        # 使用更具体的信号名称避免冲突
+        # 监听特定设备的更新信号（与协调器发送格式一致）
         signal = f"{DOMAIN}_{self.coordinator.config_entry.entry_id}_{self.device_id}_update"
         self.async_on_remove(
             async_dispatcher_connect(
@@ -90,4 +87,10 @@ class TraccarServerEntity(CoordinatorEntity[TraccarServerCoordinator]):
                 self.async_write_ha_state,
             )
         )
+        # 调用父类方法，它会自动注册协调器更新回调
         await super().async_added_to_hass()
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        # 当协调器数据更新时，自动调用 async_write_ha_state
+        self.async_write_ha_state()

@@ -22,17 +22,35 @@ async def async_setup_entry(
     """Set up binary sensor entities."""
     coordinator: TraccarServerCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    if not coordinator.data:
-        return
+    # 记录已创建的设备 ID，避免重复添加
+    created_device_ids = set()
 
-    entities = []
-    for device_entry in coordinator.data.values():
-        device = device_entry["device"]
-        entities.append(TraccarServerMotionBinarySensor(coordinator, device))
-        entities.append(TraccarServerStatusBinarySensor(coordinator, device))
-        entities.append(TraccarServerChargingBinarySensor(coordinator, device))
+    def _create_entities():
+        """Create binary sensor entities for devices in coordinator data."""
+        if not coordinator.data:
+            return
 
-    async_add_entities(entities)
+        entities = []
+        for device_id, device_entry in coordinator.data.items():
+            if device_id in created_device_ids:
+                continue
+            device = device_entry["device"]
+            entities.append(TraccarServerMotionBinarySensor(coordinator, device))
+            entities.append(TraccarServerStatusBinarySensor(coordinator, device))
+            entities.append(TraccarServerChargingBinarySensor(coordinator, device))
+            created_device_ids.add(device_id)
+
+        if entities:
+            async_add_entities(entities)
+
+    # 立即尝试创建（若已有数据）
+    _create_entities()
+
+    # 监听协调器数据变化，以便新设备出现时自动添加实体
+    def _coordinator_update():
+        _create_entities()
+
+    entry.async_on_unload(coordinator.async_add_listener(_coordinator_update))
 
 
 class TraccarServerMotionBinarySensor(TraccarServerEntity, BinarySensorEntity):
@@ -81,10 +99,8 @@ class TraccarServerChargingBinarySensor(TraccarServerEntity, BinarySensorEntity)
     def is_on(self) -> bool:
         """Return true if device is charging."""
         attrs = self.traccar_attributes
-        # 优先使用标准字段
         if "charge" in attrs:
             return bool(attrs["charge"])
         if "charging" in attrs:
             return bool(attrs["charging"])
-        # 部分设备用 ignition 表示充电/点火状态
         return bool(attrs.get("ignition", False))

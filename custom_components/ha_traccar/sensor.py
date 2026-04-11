@@ -29,31 +29,50 @@ async def async_setup_entry(
     """Set up sensor entities."""
     coordinator: TraccarServerCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    if not coordinator.data:
-        return
+    # 记录已创建的设备 ID，避免重复添加
+    created_device_ids = set()
 
-    entities = []
-    for device_entry in coordinator.data.values():
-        device = device_entry["device"]
+    def _create_entities():
+        """Create sensor entities for devices in coordinator data."""
+        if not coordinator.data:
+            return
 
-        # 基础传感器（每个设备都有）
-        entities.extend([
-            TraccarServerBatterySensor(coordinator, device),
-            TraccarServerAltitudeSensor(coordinator, device),
-            TraccarServerSpeedSensor(coordinator, device),
-            TraccarServerCourseSensor(coordinator, device),
-            TraccarServerAddressSensor(coordinator, device),
-            TraccarServerGeofenceSensor(coordinator, device),
-        ])
+        entities = []
+        for device_id, device_entry in coordinator.data.items():
+            if device_id in created_device_ids:
+                continue
 
-        # 可选传感器（仅当属性存在时）
-        attrs = device_entry["position"].get("attributes", {})
-        if "deviceTemp" in attrs:
-            entities.append(TraccarServerTemperatureSensor(coordinator, device))
-        if "totalDistance" in attrs:
-            entities.append(TraccarServerDistanceSensor(coordinator, device))
+            device = device_entry["device"]
+            # 基础传感器（每个设备都有）
+            entities.extend([
+                TraccarServerBatterySensor(coordinator, device),
+                TraccarServerAltitudeSensor(coordinator, device),
+                TraccarServerSpeedSensor(coordinator, device),
+                TraccarServerCourseSensor(coordinator, device),
+                TraccarServerAddressSensor(coordinator, device),
+                TraccarServerGeofenceSensor(coordinator, device),
+            ])
 
-    async_add_entities(entities)
+            # 可选传感器（仅当属性存在时）
+            attrs = device_entry["position"].get("attributes", {})
+            if "deviceTemp" in attrs:
+                entities.append(TraccarServerTemperatureSensor(coordinator, device))
+            if "totalDistance" in attrs:
+                entities.append(TraccarServerDistanceSensor(coordinator, device))
+
+            created_device_ids.add(device_id)
+
+        if entities:
+            async_add_entities(entities)
+
+    # 立即尝试创建（若已有数据）
+    _create_entities()
+
+    # 监听协调器数据变化，以便新设备出现时自动添加实体
+    def _coordinator_update():
+        _create_entities()
+
+    entry.async_on_unload(coordinator.async_add_listener(_coordinator_update))
 
 
 class TraccarServerBatterySensor(TraccarServerEntity, SensorEntity):
@@ -73,7 +92,6 @@ class TraccarServerBatterySensor(TraccarServerEntity, SensorEntity):
         level = self.traccar_attributes.get("batteryLevel")
         if level is None:
             return None
-        # Traccar 返回 0-100 的整数
         return int(level)
 
 

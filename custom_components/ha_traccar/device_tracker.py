@@ -33,18 +33,19 @@ async def async_setup_entry(
     """Set up device tracker entities."""
     coordinator: TraccarServerCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    if not coordinator.data:
-        return
-
     entities = []
-    for device_entry in coordinator.data.values():
-        device = device_entry["device"]
-        entities.append(TraccarServerDeviceTracker(coordinator, device))
-        entities.append(TraccarServerWGS84DeviceTracker(coordinator, device))
+
+    # ⚠️ 不再因为没数据就 return，避免实体不创建
+    if coordinator.data:
+        for device_entry in coordinator.data.values():
+            device = device_entry["device"]
+            entities.append(TraccarServerDeviceTracker(coordinator, device))
+            entities.append(TraccarServerWGS84DeviceTracker(coordinator, device))
 
     async_add_entities(entities)
 
 
+# ========================= 原始坐标 =========================
 class TraccarServerDeviceTracker(TraccarServerEntity, TrackerEntity):
     """Represent a tracked device (original coordinates)."""
 
@@ -55,7 +56,10 @@ class TraccarServerDeviceTracker(TraccarServerEntity, TrackerEntity):
     @property
     def battery_level(self) -> int | None:
         """Return battery value of the device."""
-        level = self.traccar_attributes.get("batteryLevel")
+        level = (
+            self.traccar_attributes.get("batteryLevel")
+            or self.traccar_attributes.get("battery")
+        )
         return int(level) if level is not None else None
 
     @property
@@ -64,6 +68,10 @@ class TraccarServerDeviceTracker(TraccarServerEntity, TrackerEntity):
         geofence = self.traccar_geofence
         geofence_name = geofence.get("name") if geofence else None
 
+        # speed 转 km/h（Traccar 默认是 knots）
+        speed = self.traccar_position.get("speed")
+        speed_kmh = speed * 1.852 if speed is not None else None
+
         return {
             **self.traccar_attributes,
             ATTR_ADDRESS: self.traccar_position.get("address"),
@@ -71,7 +79,7 @@ class TraccarServerDeviceTracker(TraccarServerEntity, TrackerEntity):
             ATTR_CATEGORY: self.traccar_device.get("category") if self.traccar_device else None,
             ATTR_GEOFENCE: geofence_name,
             ATTR_MOTION: self.traccar_attributes.get("motion", False),
-            ATTR_SPEED: self.traccar_position.get("speed"),
+            ATTR_SPEED: speed_kmh,
             ATTR_STATUS: self.traccar_device.get("status") if self.traccar_device else None,
             ATTR_TRACCAR_ID: self.traccar_device.get("id") if self.traccar_device else None,
             ATTR_TRACKER: DOMAIN,
@@ -80,12 +88,14 @@ class TraccarServerDeviceTracker(TraccarServerEntity, TrackerEntity):
     @property
     def latitude(self) -> float | None:
         """Return latitude value of the device."""
-        return self.traccar_position.get("latitude")
+        lat = self.traccar_position.get("latitude")
+        return lat
 
     @property
     def longitude(self) -> float | None:
         """Return longitude value of the device."""
-        return self.traccar_position.get("longitude")
+        lon = self.traccar_position.get("longitude")
+        return lon
 
     @property
     def location_accuracy(self) -> int:
@@ -98,6 +108,7 @@ class TraccarServerDeviceTracker(TraccarServerEntity, TrackerEntity):
         return SourceType.GPS
 
 
+# ========================= WGS84 坐标 =========================
 class TraccarServerWGS84DeviceTracker(TraccarServerEntity, TrackerEntity):
     """Represent a tracked device with WGS84 coordinates."""
 
@@ -108,7 +119,10 @@ class TraccarServerWGS84DeviceTracker(TraccarServerEntity, TrackerEntity):
     @property
     def battery_level(self) -> int | None:
         """Return battery value of the device."""
-        level = self.traccar_attributes.get("batteryLevel")
+        level = (
+            self.traccar_attributes.get("batteryLevel")
+            or self.traccar_attributes.get("battery")
+        )
         return int(level) if level is not None else None
 
     @property
@@ -117,10 +131,17 @@ class TraccarServerWGS84DeviceTracker(TraccarServerEntity, TrackerEntity):
         geofence = self.traccar_geofence
         geofence_name = geofence.get("name") if geofence else None
 
-        lng, lat = gcj02_to_wgs84(
-            self.traccar_position.get("longitude", 0.0),
-            self.traccar_position.get("latitude", 0.0),
-        )
+        lon = self.traccar_position.get("longitude")
+        lat = self.traccar_position.get("latitude")
+
+        if lon is None or lat is None:
+            return {}
+
+        lng, lat = gcj02_to_wgs84(lon, lat)
+
+        # speed 转 km/h
+        speed = self.traccar_position.get("speed")
+        speed_kmh = speed * 1.852 if speed is not None else None
 
         return {
             **self.traccar_attributes,
@@ -129,7 +150,7 @@ class TraccarServerWGS84DeviceTracker(TraccarServerEntity, TrackerEntity):
             ATTR_CATEGORY: self.traccar_device.get("category") if self.traccar_device else None,
             ATTR_GEOFENCE: geofence_name,
             ATTR_MOTION: self.traccar_attributes.get("motion", False),
-            ATTR_SPEED: self.traccar_position.get("speed"),
+            ATTR_SPEED: speed_kmh,
             ATTR_STATUS: self.traccar_device.get("status") if self.traccar_device else None,
             ATTR_TRACCAR_ID: self.traccar_device.get("id") if self.traccar_device else None,
             ATTR_TRACKER: DOMAIN,
@@ -140,19 +161,25 @@ class TraccarServerWGS84DeviceTracker(TraccarServerEntity, TrackerEntity):
     @property
     def latitude(self) -> float | None:
         """Return latitude value of the device in WGS84."""
-        _, lat = gcj02_to_wgs84(
-            self.traccar_position.get("longitude", 0.0),
-            self.traccar_position.get("latitude", 0.0),
-        )
+        lon = self.traccar_position.get("longitude")
+        lat = self.traccar_position.get("latitude")
+
+        if lon is None or lat is None:
+            return None
+
+        _, lat = gcj02_to_wgs84(lon, lat)
         return lat if lat != 0 else None
 
     @property
     def longitude(self) -> float | None:
         """Return longitude value of the device in WGS84."""
-        lng, _ = gcj02_to_wgs84(
-            self.traccar_position.get("longitude", 0.0),
-            self.traccar_position.get("latitude", 0.0),
-        )
+        lon = self.traccar_position.get("longitude")
+        lat = self.traccar_position.get("latitude")
+
+        if lon is None or lat is None:
+            return None
+
+        lng, _ = gcj02_to_wgs84(lon, lat)
         return lng if lng != 0 else None
 
     @property

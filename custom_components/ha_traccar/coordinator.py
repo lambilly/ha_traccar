@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from pytraccar import (
@@ -51,13 +51,14 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
         max_accuracy: float,
         skip_accuracy_filter_for: list[str],
         custom_attributes: list[str],
+        update_interval: timedelta | None = None,  # ← 新增参数
     ) -> None:
         """Initialize global ha_traccar data updater."""
         super().__init__(
             hass=hass,
             logger=LOGGER,
             name=DOMAIN,
-            update_interval=None,
+            update_interval=update_interval,  # ← 传递给父类，启用定时轮询
         )
         self.config_entry = config_entry
         self.client = client
@@ -70,8 +71,8 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
         self._should_log_subscription_error: bool = True
 
     async def _async_update_data(self) -> TraccarServerCoordinatorData:
-        """Fetch data from ha_traccar."""
-        LOGGER.debug("Updating device data")
+        """Fetch data from ha_traccar (called periodically)."""
+        LOGGER.debug("Polling device data from REST API")
         data: TraccarServerCoordinatorData = {}
         try:
             (
@@ -118,7 +119,7 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
         return data
 
     async def handle_subscription_data(self, data: SubscriptionData) -> None:
-        """Handle subscription data."""
+        """Handle subscription data (real-time update)."""
         self.logger.debug("Received subscription data: %s", data)
         self._should_log_subscription_error = True
         update_devices = set()
@@ -160,10 +161,11 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
             )
             update_devices.add(device_id)
 
-        # 发送更新信号（与实体基类中监听的信号格式一致）
         for device_id in update_devices:
             signal = f"{DOMAIN}_{self.config_entry.entry_id}_{device_id}_update"
             async_dispatcher_send(self.hass, signal)
+
+        self.async_set_updated_data(dict(self.data))
 
     async def import_events(self, _: datetime | None = None) -> None:
         """Import events from Traccar."""
@@ -186,7 +188,6 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
         for event in events:
             device = self.data[event["deviceId"]]["device"]
             self.hass.bus.async_fire(
-                # 保持与原有集成的兼容性，事件名前缀为 "traccar_"
                 f"traccar_{EVENTS[event['type']]}",
                 {
                     "device_traccar_id": event["deviceId"],
@@ -202,19 +203,22 @@ class TraccarServerCoordinator(DataUpdateCoordinator[TraccarServerCoordinatorDat
         while True:
             try:
                 await self.client.subscribe(self.handle_subscription_data)
+                self.logger.info("WebSocket connected successfully")
+                self._should_log_subscription_error = True
             except TraccarException as ex:
                 if self._should_log_subscription_error:
                     self._should_log_subscription_error = False
-                    LOGGER.error("Error while subscribing to Traccar: %s", ex)
-                # 等待 10 秒后重试
-                await asyncio.sleep(10)
+                    self.logger.debug(
+                        "WebSocket unavailable, fallback to polling: %s", ex
+                    )
+                await asyncio.sleep(30)  # 增加重试间隔，减少日志
                 continue
             except asyncio.CancelledError:
-                LOGGER.debug("Subscription task cancelled")
+                self.logger.debug("Subscription task cancelled")
                 break
-            except Exception as ex:  # pylint: disable=broad-except
-                LOGGER.exception("Unexpected error in subscription: %s", ex)
-                await asyncio.sleep(10)
+            except Exception as ex:
+                self.logger.exception("Unexpected error in subscription: %s", ex)
+                await asyncio.sleep(30)
                 continue
 
     def _return_custom_attributes_if_not_filtered_by_accuracy_configuration(

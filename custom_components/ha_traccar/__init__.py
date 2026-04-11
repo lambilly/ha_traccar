@@ -38,13 +38,11 @@ PLATFORMS: list[Platform] = [
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up ha_traccar from a config entry."""
-    # 创建 HA 托管的 aiohttp 会话
     session = async_create_clientsession(
         hass,
         verify_ssl=entry.data.get(CONF_VERIFY_SSL, True),
     )
 
-    # 创建 Traccar API 客户端
     client = ApiClient(
         host=entry.data[CONF_HOST],
         port=int(entry.data.get(CONF_PORT, 8082)),
@@ -63,6 +61,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         max_accuracy=entry.options.get(CONF_MAX_ACCURACY, 0.0),
         skip_accuracy_filter_for=entry.options.get(CONF_SKIP_ACCURACY_FILTER_FOR, []),
         custom_attributes=entry.options.get(CONF_CUSTOM_ATTRIBUTES, []),
+        update_interval=timedelta(seconds=30),  # ← 添加轮询间隔
     )
 
     try:
@@ -77,9 +76,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
-    # 设置事件导入定时任务（仅当配置了事件时）
     if entry.options.get(CONF_EVENTS):
-        # import_events 方法接受一个可选的 datetime 参数，直接传入即可
         entry.async_on_unload(
             async_track_time_interval(
                 hass,
@@ -90,7 +87,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         )
 
-    # 启动 WebSocket 订阅（后台任务）
+    # 启动 WebSocket 订阅（后台任务，即使失败也不影响轮询）
     entry.async_create_background_task(
         hass=hass,
         target=coordinator.subscribe(),
